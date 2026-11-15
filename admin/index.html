@@ -1,0 +1,194 @@
+<!DOCTYPE html>
+<html lang="zh-Hant">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex, nofollow, noarchive">
+<title>Rich人脈富豪俱樂部｜管理後台</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Noto+Sans+TC:wght@400;500;700;900&display=swap" rel="stylesheet">
+<script src="https://cdn.jsdelivr.net/npm/@supabase/supabase-js@2"></script>
+<script src="config.js"></script>
+<style>
+:root{--bg:#F6F4EF;--card:#FFFFFF;--line:#E6E1D6;--line2:#EFEBE2;--ink:#1C1F26;--mute:#5E5A52;--pri:#0F5C4D;--pri2:#E3EFEB;--deep:#14342D;--gold:#855C0E;--gold2:#F6ECD6;--goldL:#E9C77B;--red:#C2410C;--red2:#FBE7DC}
+*{box-sizing:border-box}
+html,body{margin:0;background:var(--bg);color:var(--ink);font-family:'Noto Sans TC',system-ui,-apple-system,sans-serif;-webkit-font-smoothing:antialiased}
+button,input,select{font-family:inherit;font-size:inherit;color:inherit}
+h1,h2,h3{margin:0}
+.wrap{max-width:1100px;margin:0 auto;padding:24px 20px 60px}
+.card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:18px}
+.row{display:flex;align-items:center;gap:10px}
+.col{display:flex;flex-direction:column;gap:12px}
+.between{display:flex;align-items:center;justify-content:space-between;gap:12px;flex-wrap:wrap}
+.muted{color:var(--mute)}.small{font-size:14px}.xs{font-size:12.5px}
+.btn{height:44px;border-radius:12px;border:1px solid var(--pri);background:var(--pri);color:#fff;font-weight:700;font-size:15px;padding:0 16px;display:inline-flex;align-items:center;justify-content:center;gap:8px;cursor:pointer}
+.btn:disabled{opacity:.5;cursor:default}
+.btn.ghost{background:#fff;color:var(--pri)}
+.btn.sm{height:34px;font-size:13px;padding:0 12px;border-radius:10px}
+.btn.danger{background:#fff;color:var(--red);border-color:var(--red)}
+.btn.block{width:100%}
+.input,select{width:100%;border:1px solid var(--line);border-radius:12px;background:#fff;padding:0 12px;height:46px;font-size:15px;outline-color:var(--pri)}
+select.sm{height:34px;font-size:13px;width:auto;border-radius:10px}
+.eyebrow{font-size:12.5px;letter-spacing:2px;color:var(--gold);font-weight:700}
+.tabs{display:flex;gap:6px;flex-wrap:wrap}
+.tabs button{height:40px;padding:0 16px;border-radius:20px;border:1px solid var(--line);background:#fff;font-weight:700;cursor:pointer}
+.tabs button[aria-selected=true]{background:var(--ink);border-color:var(--ink);color:#fff}
+.stats{display:grid;grid-template-columns:repeat(auto-fit,minmax(160px,1fr));gap:12px}
+.stat .n{font-size:30px;font-weight:900;line-height:1.1}
+.bars{display:flex;flex-direction:column;gap:8px}
+.bar{display:grid;grid-template-columns:72px 1fr 36px;align-items:center;gap:10px;font-size:14px}
+.bar .t{height:14px;border-radius:7px;background:var(--line2);overflow:hidden}
+.bar .t i{display:block;height:100%;background:var(--pri);border-radius:7px}
+.cols{display:flex;align-items:flex-end;gap:6px;height:140px;padding-top:10px}
+.cols div{flex:1;display:flex;flex-direction:column;align-items:center;gap:4px;font-size:11px;color:var(--mute)}
+.cols b{width:100%;background:var(--pri);border-radius:6px 6px 0 0;min-height:2px}
+table{width:100%;border-collapse:collapse;font-size:14px}
+th,td{text-align:left;padding:10px 8px;border-bottom:1px solid var(--line2);vertical-align:middle}
+th{font-size:12.5px;color:var(--mute);font-weight:700}
+.tbl{overflow-x:auto}
+.badge{display:inline-block;font-size:12px;font-weight:700;padding:3px 9px;border-radius:999px;background:var(--pri2);color:var(--pri)}
+.badge.red{background:var(--red2);color:var(--red)}
+.badge.gold{background:var(--gold2);color:var(--gold)}
+.badge.ink{background:var(--ink);color:#fff}
+.alert{color:var(--red);font-size:14px;margin:0;line-height:1.6}
+.ok{color:var(--pri);font-size:14px;margin:0;line-height:1.6}
+.toast{position:fixed;left:50%;bottom:24px;transform:translateX(-50%);background:var(--ink);color:#fff;padding:12px 18px;border-radius:12px;font-size:14px;z-index:9}
+.login{min-height:100vh;display:flex;align-items:center;justify-content:center;padding:20px}
+.login .card{width:100%;max-width:400px;padding:28px}
+.logo{width:60px;height:60px;border-radius:18px;background:var(--deep);color:var(--goldL);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:20px}
+.divider{display:flex;align-items:center;gap:10px;font-size:12.5px;color:var(--mute)}.divider:before,.divider:after{content:"";flex:1;height:1px;background:var(--line)}
+</style>
+</head>
+<body>
+<div id="app"><div class="login"><span class="muted">載入中…</span></div></div>
+<script>
+(function(){
+'use strict';
+var C=window.RICH_CONFIG||{};
+var app=document.getElementById('app');
+if(!C.url||!window.supabase){ app.innerHTML='<div class="login"><div class="card">網站尚未設定完成（缺少 Supabase 連線設定）。</div></div>'; return; }
+var sb=window.supabase.createClient(C.url,C.anonKey,{auth:{persistSession:true,autoRefreshToken:true,detectSessionInUrl:true,flowType:'pkce',storageKey:'rich-admin-auth'}});
+var here=location.origin+location.pathname;
+var REG={north:'北區',mid:'中區',south:'南區',east:'東區',online:'海外'};
+var ROLES=['創作者','明星','支持者','媒合者','商人','積蓄者','地主','技師'];
+var ALIAS={'交易者':'媒合者','機械師':'技師','領主':'地主'};
+var KIND={register:'註冊',login:'登入',logout:'登出',open:'開啟 APP',pwchange:'修改密碼',pwreset:'重設密碼',admin:'進入後台',loginfail:'登入失敗'};
+var ROLE_LABEL={student:'學員',viewer:'檢視者',manager:'管理者',owner:'擁有者'};
+var S={view:'loading',tab:'stats',err:'',msg:'',busy:false,user:null,me:{},students:[],members:{},events:[],q:'',logFor:null,toast:''};
+
+function esc(s){return String(s==null?'':s).replace(/[&<>"']/g,function(c){return{'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c];});}
+function fmt(t){var d=new Date(t);function p(n){return('0'+n).slice(-2);}return d.getFullYear()+'-'+p(d.getMonth()+1)+'-'+p(d.getDate())+' '+p(d.getHours())+':'+p(d.getMinutes());}
+function toast(m){S.toast=m;draw();setTimeout(function(){if(S.toast===m){S.toast='';draw();}},2600);}
+function device(){var ua=navigator.userAgent||'';return(/iPhone|iPad/.test(ua)?'iOS':/Android/.test(ua)?'Android':/Mac/.test(ua)?'Mac':/Windows/.test(ua)?'Windows':'其他')+' · 後台';}
+function nameOf(uid){var m=S.members[uid];return(m&&m.name)||'（尚未建立名片）';}
+
+var GOOGLE='<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
+
+function vLogin(){
+  return '<div class="login"><div class="card col" style="gap:16px"><div class="col" style="align-items:center;text-align:center;gap:8px"><span class="logo">R</span><span class="eyebrow">RICH人脈富豪俱樂部</span><h1 style="font-size:22px">管理後台</h1><p class="small muted" style="margin:0">僅限授權的管理帳號登入。</p></div>'+
+  (C.google===false?'':'<button class="btn ghost block" data-a="google" style="height:50px;gap:10px">'+GOOGLE+'使用 Google 帳號登入</button><div class="divider">或用信箱登入</div>')+
+  '<form class="col" data-form="login"><input id="l-email" class="input" type="email" placeholder="信箱" autocomplete="username"><input id="l-pw" class="input" type="password" placeholder="密碼" autocomplete="current-password">'+
+  (S.err?'<p class="alert" role="alert">'+esc(S.err)+'</p>':'')+'<button class="btn block" data-a="login" '+(S.busy?'disabled':'')+'>'+(S.busy?'登入中…':'登入')+'</button></form></div></div>';
+}
+function vDenied(){
+  return '<div class="login"><div class="card col" style="text-align:center;align-items:center"><span class="logo">R</span><h1 style="font-size:20px">沒有後台權限</h1><p class="small muted" style="margin:0;line-height:1.7">'+esc(S.user&&S.user.email)+' 沒有管理後台的權限。</p><button class="btn ghost" data-a="logout">換一個帳號</button></div></div>';
+}
+
+function stats(){
+  var st=S.students, cards=Object.keys(S.members).length, susp=st.filter(function(s){return s.suspended;}).length;
+  var staff=st.filter(function(s){return s.role!=='student';}).length;
+  var weekAgo=Date.now()-7*864e5;
+  var logins7=S.events.filter(function(e){return(e.kind==='login'||e.kind==='open')&&new Date(e.at).getTime()>weekAgo;}).length;
+  var h='<div class="stats">'+[['學員總數',st.length],['已完成名片',cards],['停權中',susp],['管理人員',staff+' / 50'],['近 7 天登入',logins7]].map(function(x){return'<div class="card stat"><div class="xs muted">'+x[0]+'</div><div class="n">'+x[1]+'</div></div>';}).join('')+'</div>';
+  var days=[];for(var i=13;i>=0;i--){var d=new Date();d.setHours(0,0,0,0);d.setDate(d.getDate()-i);days.push(d);}
+  var per=days.map(function(d){var a=d.getTime(),b=a+864e5;return S.events.filter(function(e){var t=new Date(e.at).getTime();return(e.kind==='login'||e.kind==='open')&&t>=a&&t<b;}).length;});
+  var mx=Math.max.apply(null,per.concat([1]));
+  h+='<div class="card col" style="margin-top:12px"><h3 style="font-size:16px">近 14 天登入次數</h3><div class="cols">'+per.map(function(n,i){return'<div><span>'+n+'</span><b style="height:'+Math.round(n/mx*100)+'px"></b><span>'+(days[i].getMonth()+1)+'/'+days[i].getDate()+'</span></div>';}).join('')+'</div></div>';
+  var rc={},gc={};ROLES.forEach(function(r){rc[r]=0;});Object.keys(REG).forEach(function(k){gc[k]=0;});
+  Object.keys(S.members).forEach(function(id){var m=S.members[id]||{};var r=ALIAS[m.role]||m.role;if(rc[r]!=null)rc[r]++;var rs=(m.regions&&m.regions.length)?m.regions:(m.region?[m.region]:[]);rs.forEach(function(k){if(gc[k]!=null)gc[k]++;});});
+  function bars(obj,label){var mx2=Math.max.apply(null,Object.keys(obj).map(function(k){return obj[k];}).concat([1]));return'<div class="bars">'+Object.keys(obj).map(function(k){return'<div class="bar"><span>'+esc(label?label[k]:k)+'</span><span class="t"><i style="width:'+Math.round(obj[k]/mx2*100)+'%"></i></span><b>'+obj[k]+'</b></div>';}).join('')+'</div>';}
+  h+='<div class="stats" style="margin-top:12px;grid-template-columns:repeat(auto-fit,minmax(300px,1fr))"><div class="card col"><h3 style="font-size:16px">天賦角色分布</h3>'+bars(rc)+'</div><div class="card col"><h3 style="font-size:16px">長期活躍地區分布</h3>'+bars(gc,REG)+'</div></div>';
+  return h;
+}
+function students(){
+  var q=S.q.trim().toLowerCase();
+  var list=S.students.filter(function(s){return!q||(s.student_no||'').toLowerCase().indexOf(q)>=0||(s.email||'').toLowerCase().indexOf(q)>=0||nameOf(s.user_id).toLowerCase().indexOf(q)>=0;});
+  var h='<div class="card col"><div class="between"><h3 style="font-size:16px">學員管理（'+list.length+'）</h3><input id="q" class="input" style="max-width:320px" placeholder="搜尋姓名、學員編號或信箱" value="'+esc(S.q)+'"></div><div class="tbl"><table><thead><tr><th>姓名</th><th>學員編號</th><th>信箱</th><th>身分</th><th>狀態</th><th>註冊時間</th><th>操作</th></tr></thead><tbody>';
+  h+=list.map(function(s){
+    var ownerRow=s.role==='owner';
+    var acts='<button class="btn ghost sm" data-a="logs" data-v="'+s.user_id+'">登入紀錄</button> ';
+    if(S.me.manager&&!ownerRow) acts+=s.suspended?'<button class="btn ghost sm" data-a="unsusp" data-v="'+s.user_id+'">恢復</button> ':'<button class="btn danger sm" data-a="susp" data-v="'+s.user_id+'">停權</button> ';
+    if(S.me.manager) acts+='<button class="btn ghost sm" data-a="reset" data-v="'+s.user_id+'">寄重設密碼信</button>';
+    var role=S.me.owner&&!ownerRow?'<select class="sm" data-role="'+s.user_id+'">'+['student','viewer','manager'].map(function(r){return'<option value="'+r+'" '+(s.role===r?'selected':'')+'>'+ROLE_LABEL[r]+'</option>';}).join('')+'</select>':'<span class="badge '+(s.role==='student'?'':'ink')+'">'+ROLE_LABEL[s.role]+'</span>';
+    return'<tr><td><b>'+esc(nameOf(s.user_id))+'</b></td><td>'+esc(s.student_no)+'</td><td class="small">'+esc(s.email)+'</td><td>'+role+'</td><td>'+(s.suspended?'<span class="badge red">停權中</span>':'<span class="badge">正常</span>')+'</td><td class="xs muted">'+fmt(s.created_at)+'</td><td style="white-space:nowrap">'+acts+'</td></tr>';
+  }).join('')||'<tr><td colspan="7" class="muted">目前沒有學員。</td></tr>';
+  return h+'</tbody></table></div>'+(S.me.owner?'<p class="xs muted" style="margin:0">只有擁有者可以調整身分；管理人員最多 50 位。「檢視者」只能看後台，「管理者」可以停權與寄重設信。</p>':'')+'</div>';
+}
+function logs(){
+  var who=S.logFor, list=S.events.filter(function(e){return!who||e.user_id===who;});
+  var h='<div class="card col"><div class="between"><h3 style="font-size:16px">登入紀錄'+(who?'：'+esc(nameOf(who)):'（全部）')+'</h3>'+(who?'<button class="btn ghost sm" data-a="logsAll">顯示全部</button>':'')+'</div><p class="xs muted" style="margin:0">紀錄永久保存，任何人（包含管理者）都無法修改或刪除。顯示最近 1000 筆。</p><div class="tbl"><table><thead><tr><th>時間</th><th>學員</th><th>動作</th><th>信箱／帳號</th><th>裝置</th></tr></thead><tbody>';
+  h+=list.map(function(e){return'<tr><td class="small" style="white-space:nowrap">'+fmt(e.at)+'</td><td>'+(e.user_id?esc(nameOf(e.user_id)):'<span class="muted">—</span>')+'</td><td>'+(e.kind==='loginfail'?'<span class="badge red">':'<span class="badge">')+esc(KIND[e.kind]||e.kind)+'</span></td><td class="small">'+esc(e.email)+'</td><td class="xs muted">'+esc(e.device)+'</td></tr>';}).join('')||'<tr><td colspan="5" class="muted">尚無紀錄。</td></tr>';
+  return h+'</tbody></table></div></div>';
+}
+function vMain(){
+  var t=[['stats','統計'],['students','學員管理'],['logs','登入紀錄']];
+  var body=S.tab==='students'?students():S.tab==='logs'?logs():stats();
+  return'<div class="wrap col" style="gap:16px"><div class="between"><div class="col" style="gap:4px"><span class="eyebrow">RICH人脈富豪俱樂部</span><h1 style="font-size:26px">管理後台</h1></div><div class="row"><span class="xs muted">'+esc(S.user.email)+'（'+(S.me.owner?'擁有者':S.me.manager?'管理者':'檢視者')+'）</span><button class="btn ghost sm" data-a="reload">重新整理</button><button class="btn ghost sm" data-a="logout">登出</button></div></div>'+
+    '<div class="tabs" role="tablist">'+t.map(function(x){return'<button role="tab" aria-selected="'+(S.tab===x[0])+'" data-a="tab" data-v="'+x[0]+'">'+x[1]+'</button>';}).join('')+'</div>'+body+'</div>';
+}
+function draw(){
+  var ae=document.activeElement,aid=ae&&ae.id,pos=aid&&ae.selectionStart;
+  var h=S.view==='login'?vLogin():S.view==='denied'?vDenied():S.view==='main'?vMain():'<div class="login"><span class="muted">載入中…</span></div>';
+  if(S.toast)h+='<div class="toast" role="status">'+esc(S.toast)+'</div>';
+  app.innerHTML=h;
+  if(aid){var el=document.getElementById(aid);if(el){el.focus();try{el.setSelectionRange(pos,pos);}catch(e){}}}
+}
+function load(){
+  return Promise.all([
+    sb.from('students').select('*').order('created_at',{ascending:false}),
+    sb.from('docs').select('path,data').eq('col','members').range(0,4999),
+    sb.from('login_events').select('*').order('at',{ascending:false}).limit(1000)
+  ]).then(function(r){
+    S.students=r[0].data||[];S.members={};(r[1].data||[]).forEach(function(d){S.members[d.path.split('/')[1]]=d.data;});S.events=r[2].data||[];draw();
+  });
+}
+function afterSession(){
+  return sb.auth.getUser().then(function(r){
+    S.user=r.data&&r.data.user;if(!S.user){S.view='login';draw();return;}
+    return sb.rpc('admin_whoami').then(function(w){
+      S.me=w.data||{};
+      if(!S.me.staff){S.view='denied';draw();return;}
+      sb.from('login_events').insert({user_id:S.user.id,email:S.user.email,kind:'admin',device:device()}).then(function(){},function(){});
+      S.view='main';draw();return load();
+    });
+  });
+}
+var A={
+  google:function(){S.busy=true;draw();sb.auth.signInWithOAuth({provider:'google',options:{redirectTo:here,queryParams:{prompt:'select_account'}}}).then(function(r){if(r.error){S.busy=false;S.err='Google 登入暫時無法使用：'+r.error.message;draw();}});},
+  login:function(){var e=(document.getElementById('l-email')||{}).value||'',p=(document.getElementById('l-pw')||{}).value||'';if(!e||!p){S.err='請輸入信箱和密碼';draw();return;}S.busy=true;S.err='';draw();
+    sb.auth.signInWithPassword({email:e.trim().toLowerCase(),password:p}).then(function(r){S.busy=false;if(r.error){S.err='信箱或密碼不正確';draw();return;}afterSession();});},
+  logout:function(){sb.auth.signOut().then(function(){location.href=here;});},
+  reload:function(){load().then(function(){toast('已更新');});},
+  tab:function(d){S.tab=d.v;draw();},
+  logs:function(d){S.logFor=d.v;S.tab='logs';draw();},
+  logsAll:function(){S.logFor=null;draw();},
+  susp:function(d){var note=prompt('停權原因（學員登入時會看到，可留空）：','');if(note===null)return;sb.rpc('admin_set_suspended',{target:d.v,val:true,note:note||null}).then(function(r){if(r.data!=='ok'){toast('無法停權：'+(r.error?r.error.message:r.data));return;}toast('已停權');load();});},
+  unsusp:function(d){sb.rpc('admin_set_suspended',{target:d.v,val:false}).then(function(r){if(r.data!=='ok'){toast('無法恢復：'+(r.error?r.error.message:r.data));return;}toast('已恢復帳號');load();});},
+  reset:function(d){var s=S.students.filter(function(x){return x.user_id===d.v;})[0];if(!s)return;if(!confirm('要寄重設密碼信到 '+s.email+' 嗎？'))return;
+    sb.auth.resetPasswordForEmail(s.email,{redirectTo:(C.studentUrl||'').replace(/\/?$/,'/')+'?reset=1'}).then(function(r){toast(r.error?'寄送失敗：'+r.error.message:'已寄出重設密碼信');});}
+};
+app.addEventListener('click',function(ev){var t=ev.target.closest('[data-a]');if(!t)return;ev.preventDefault();var f=A[t.dataset.a];if(f)f({v:t.dataset.v});});
+app.addEventListener('keydown',function(ev){if(ev.key==='Enter'&&ev.target.closest('form[data-form=login]')){ev.preventDefault();A.login();}});
+app.addEventListener('input',function(ev){if(ev.target.id==='q'){S.q=ev.target.value;draw();}});
+app.addEventListener('change',function(ev){var uid=ev.target.dataset&&ev.target.dataset.role;if(!uid)return;var v=ev.target.value;
+  sb.rpc('admin_set_role',{target:uid,new_role:v}).then(function(r){if(r.data==='full'){toast('管理人員已滿 50 位');}else if(r.data!=='ok'){toast('無法調整：'+(r.error?r.error.message:r.data));}else toast('已更新身分');load();});});
+var hashErr=/error_description=([^&]+)/.exec(location.hash+location.search);
+sb.auth.getSession().then(function(r){
+  if(hashErr){S.err=decodeURIComponent(hashErr[1].replace(/\+/g,' '));}
+  if(/[?&]code=|error/.test(location.search+location.hash))history.replaceState(null,'',here);
+  if(r.data&&r.data.session)return afterSession();S.view='login';draw();
+},function(){S.view='login';draw();});
+})();
+</script>
+</body>
+</html>

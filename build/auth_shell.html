@@ -1,0 +1,207 @@
+<script>
+/* =====================================================================
+   登入／註冊畫面（真正的帳號系統：Supabase Auth）
+   - 登入：學員編號＋密碼，或 Google 帳號
+   - 註冊：只有註冊需要通關密語（在伺服器端檢查）
+   - 忘記密碼：寄重設信到註冊信箱
+   ===================================================================== */
+(function(){
+  'use strict';
+  var C = window.RICH_CONFIG;
+  if(!C || !C.url || !window.supabase) return;
+  var sb = window.supabase.createClient(C.url, C.anonKey, { auth:{ persistSession:true, autoRefreshToken:true, detectSessionInUrl:true, flowType:'pkce' } });
+  window.__richSB = sb;
+  var here = location.origin + location.pathname;
+  var root = document.getElementById('app');
+  var st = { view:'loading', err:'', msg:'', busy:false, f:{}, user:null, started:false };
+
+  function esc(s){ return String(s==null?'':s).replace(/[&<>"']/g,function(c){ return {'&':'&amp;','<':'&lt;','>':'&gt;','"':'&quot;',"'":'&#39;'}[c]; }); }
+  function device(){ var ua=navigator.userAgent||''; var os=/iPhone|iPad|iPod/.test(ua)?'iOS':/Android/.test(ua)?'Android':/Mac OS X/.test(ua)?'Mac':/Windows/.test(ua)?'Windows':/Linux/.test(ua)?'Linux':'其他';
+    var br=/Edg\//.test(ua)?'Edge':/Chrome\//.test(ua)?'Chrome':/Safari\//.test(ua)?'Safari':/Firefox\//.test(ua)?'Firefox':'瀏覽器'; return os+' · '+br; }
+  function pwRule(pw){ pw=String(pw||''); if(pw.length<6) return '密碼至少 6 個字元'; if(pw.length>30) return '密碼最多 30 個字元'; if((pw.match(/[0-9]/g)||[]).length<3) return '密碼至少要包含 3 個數字'; return ''; }
+  function normNo(v){ return String(v||'').trim().toUpperCase(); }
+  function log(kind){ if(!st.user) return Promise.resolve(); return sb.from('login_events').insert({ user_id:st.user.id, email:st.user.email, kind:kind, device:device() }).then(function(){},function(){}); }
+  function g(id){ var el=document.getElementById(id); return el?el.value:''; }
+
+  var GOOGLE_SVG='<svg width="18" height="18" viewBox="0 0 48 48" aria-hidden="true"><path fill="#EA4335" d="M24 9.5c3.5 0 6.6 1.2 9 3.5l6.7-6.7C35.6 2.4 30.2 0 24 0 14.6 0 6.6 5.4 2.7 13.3l7.8 6.1C12.4 13.6 17.7 9.5 24 9.5z"/><path fill="#4285F4" d="M46.5 24.5c0-1.6-.1-3.1-.4-4.5H24v9h12.7c-.6 3-2.3 5.5-4.8 7.2l7.5 5.8c4.4-4.1 7.1-10.1 7.1-17.5z"/><path fill="#FBBC05" d="M10.5 28.6c-.5-1.4-.8-3-.8-4.6s.3-3.2.8-4.6l-7.8-6.1C1 16.6 0 20.2 0 24s1 7.4 2.7 10.7l7.8-6.1z"/><path fill="#34A853" d="M24 48c6.5 0 11.9-2.1 15.9-5.8l-7.5-5.8c-2.1 1.4-4.8 2.3-8.4 2.3-6.3 0-11.6-4.1-13.5-9.9l-7.8 6.1C6.6 42.6 14.6 48 24 48z"/></svg>';
+
+  function shell(title, sub, inner){
+    return '<div id="scroll"><div class="pad"><div class="col" style="min-height:86vh;justify-content:center;gap:18px;max-width:420px;margin:0 auto">'+
+      '<div class="col" style="align-items:center;gap:10px;text-align:center"><span style="width:68px;height:68px;border-radius:22px;background:var(--deep);color:var(--goldL);display:flex;align-items:center;justify-content:center;font-weight:900;font-size:22px">R</span>'+
+      '<span class="eyebrow">輕易豐盛 財商團隊學院</span><h1 style="font-size:24px;margin:0">'+title+'</h1>'+(sub?'<p class="small muted" style="margin:0;line-height:1.7">'+sub+'</p>':'')+'</div>'+
+      inner+'</div></div></div>';
+  }
+  function alertBox(){ return (st.err?'<p role="alert" class="small" style="margin:0;color:var(--red);line-height:1.6">'+esc(st.err)+'</p>':'')+(st.msg?'<p role="status" class="small" style="margin:0;color:var(--pri);line-height:1.6">'+esc(st.msg)+'</p>':''); }
+  function tabs(){ return '<div class="seg" role="tablist">'+[['login','登入'],['register','註冊']].map(function(t){ return '<button role="tab" aria-selected="'+(st.view===t[0])+'" data-a="tab" data-v="'+t[0]+'">'+t[1]+'</button>'; }).join('')+'</div>'; }
+  function googleBtn(label){ return C.google===false?'':'<button class="btn ghost block" style="height:50px;font-size:15px;gap:10px;background:#fff" data-a="google">'+GOOGLE_SVG+label+'</button><div class="row xs muted" style="gap:10px;align-items:center"><span style="flex:1;height:1px;background:var(--line)"></span>或<span style="flex:1;height:1px;background:var(--line)"></span></div>'; }
+  function input(id,label,type,ph,extra){ return '<label class="f">'+label+'<input id="'+id+'" class="input" type="'+(type||'text')+'" value="'+esc(st.f[id]||'')+'" placeholder="'+esc(ph||'')+'" '+(extra||'')+'></label>'; }
+  function busy(label){ return st.busy?'處理中…':label; }
+
+  function draw(){
+    if(st.started) return;
+    var h='';
+    if(st.view==='loading') h='<div class="loading"><div class="eyebrow">輕易豐盛 財商團隊學院</div><div>載入中…</div></div>';
+    else if(st.view==='login') h=shell('Rich人脈富豪俱樂部','',tabs()+googleBtn('使用 Google 帳號登入')+
+      '<form class="col" style="gap:12px" data-form="login">'+input('a-sno','學員編號','text','例：A12345','autocomplete="username" style="letter-spacing:1px"')+input('a-pw','密碼','password','','autocomplete="current-password"')+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="login" '+(st.busy?'disabled':'')+'>'+busy('登入')+'</button>'+
+      '<button type="button" class="xs" style="background:none;border:none;color:var(--pri);font-weight:700;text-decoration:underline;align-self:center;padding:8px" data-a="go" data-v="forgot">忘記密碼？</button></form>');
+    else if(st.view==='register') h=shell('Rich人脈富豪俱樂部','註冊需要課程中公布的通關密語。',tabs()+googleBtn('使用 Google 帳號註冊')+
+      '<form class="col" style="gap:12px" data-form="register">'+input('r-pass','通關密語 *','text','','autocomplete="off"')+input('r-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
+      input('r-email','信箱 *（忘記密碼時用來重設）','email','name@gmail.com','autocomplete="email"')+input('r-pw','設定密碼 *','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">至少 6 個字元，其中至少 3 個數字。</span>'+input('r-pw2','再輸入一次密碼 *','password','','autocomplete="new-password"')+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="register" '+(st.busy?'disabled':'')+'>'+busy('註冊')+'</button></form>');
+    else if(st.view==='forgot') h=shell('忘記密碼','輸入學員編號或註冊信箱，我們會寄一封重設密碼的信給你。',
+      '<form class="col" style="gap:12px" data-form="forgot">'+input('f-id','學員編號或信箱','text','','autocomplete="username"')+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="forgot" '+(st.busy?'disabled':'')+'>'+busy('寄送重設信')+'</button>'+
+      '<button type="button" class="btn ghost block" data-a="go" data-v="login">回登入</button></form>');
+    else if(st.view==='recovery') h=shell('設定新密碼','請輸入新的密碼。',
+      '<form class="col" style="gap:12px" data-form="recovery">'+input('n-pw','新密碼','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">至少 6 個字元，其中至少 3 個數字。</span>'+input('n-pw2','再輸入一次新密碼','password','','autocomplete="new-password"')+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="recovery" '+(st.busy?'disabled':'')+'>'+busy('更新密碼並登入')+'</button></form>');
+    else if(st.view==='finish') h=shell('完成學員註冊','你已用 '+esc(st.user&&st.user.email)+' 登入。<br>第一次使用，請輸入通關密語和學員編號。',
+      '<form class="col" style="gap:12px" data-form="finish">'+input('c-pass','通關密語 *','text','','autocomplete="off"')+input('c-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
+      input('c-pw','設定密碼（選填）','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">設定後，也可以用「學員編號＋密碼」登入。至少 6 個字元、3 個數字。</span>'+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="finish" '+(st.busy?'disabled':'')+'>'+busy('完成註冊')+'</button>'+
+      '<button type="button" class="btn ghost block" data-a="logout">換一個帳號</button></form>');
+    else if(st.view==='checkEmail') h=shell('請到信箱確認','我們寄了一封確認信到 <b>'+esc(st.f['r-email']||'')+'</b>。<br>點信裡的連結後，回到這裡用學員編號和密碼登入。',
+      '<button class="btn block" style="height:52px" data-a="go" data-v="login">回登入</button>');
+    else if(st.view==='suspended') h=shell('帳號已暫停使用',esc(st.note||'如有疑問，請聯絡學院管理者。'),'<button class="btn ghost block" data-a="logout">登出</button>');
+    else if(st.view==='setup') h=shell('網站尚未設定完成','請管理者完成 Supabase 設定。','');
+    root.innerHTML=h;
+  }
+
+  function keep(){ document.querySelectorAll('#app input').forEach(function(el){ st.f[el.id]=el.value; }); }
+  function fail(msg){ st.busy=false; st.err=msg; st.msg=''; draw(); }
+
+  function startApp(row){
+    st.started=true;
+    var meta=(st.user&&st.user.user_metadata)||{};
+    window.__richStart({ sb:sb, uid:st.user.id, email:st.user.email, studentNo:row.student_no, name:meta.full_name||meta.name||'' });
+  }
+  function afterSession(kind){
+    return sb.auth.getUser().then(function(r){
+      st.user=r.data&&r.data.user; if(!st.user){ st.view='login'; draw(); return; }
+      return sb.from('students').select('student_no,suspended,suspend_note').eq('user_id',st.user.id).maybeSingle().then(function(q){
+        var row=q.data;
+        if(!row){ st.view='finish'; st.busy=false; st.err=''; draw(); return; }
+        if(row.suspended){ st.note=row.suspend_note; st.view='suspended'; draw(); return; }
+        log(kind||'open'); startApp(row);
+      });
+    });
+  }
+
+  var A = {
+    tab:function(d){ keep(); st.view=d.v; st.err=''; st.msg=''; draw(); },
+    go:function(d){ keep(); st.view=d.v; st.err=''; st.msg=''; draw(); },
+    google:function(){ st.busy=true; draw(); sb.auth.signInWithOAuth({ provider:'google', options:{ redirectTo:here, queryParams:{ prompt:'select_account' } } }).then(function(r){ if(r.error) fail('Google 登入暫時無法使用：'+r.error.message); }); },
+    login:function(){
+      keep(); var sno=normNo(st.f['a-sno']), pw=st.f['a-pw']||'';
+      if(!sno||!pw) return fail('請輸入學員編號和密碼');
+      st.busy=true; st.err=''; draw();
+      var ident = sno.indexOf('@')>0 ? Promise.resolve({data:sno.toLowerCase()}) : sb.rpc('login_email_for',{sno:sno});
+      ident.then(function(r){
+        var email=r&&r.data;
+        if(!email){ sb.rpc('log_login_fail',{sno_or_email:sno, dev:device()}); return fail('學員編號或密碼不正確'); }
+        return sb.auth.signInWithPassword({ email:email, password:pw }).then(function(res){
+          if(res.error){
+            var m=String(res.error.message||'');
+            if(/confirm/i.test(m)) return fail('請先到註冊信箱點選確認信，再回來登入。');
+            sb.rpc('log_login_fail',{sno_or_email:sno, dev:device()});
+            return fail(/Invalid login/i.test(m)?'學員編號或密碼不正確（用 Google 註冊的人，請按上方「使用 Google 帳號登入」）':'登入失敗：'+m);
+          }
+          st.f['a-pw']=''; return afterSession('login');
+        });
+      });
+    },
+    register:function(){
+      keep(); var pass=st.f['r-pass']||'', sno=normNo(st.f['r-sno']), email=String(st.f['r-email']||'').trim().toLowerCase(), pw=st.f['r-pw']||'', pw2=st.f['r-pw2']||'';
+      var e=!pass?'請輸入通關密語':!/^[A-Z0-9-]{2,20}$/.test(sno)?'請輸入正確的學員編號（英文、數字或 -）':!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?'請輸入正確的信箱':pwRule(pw)||(pw!==pw2?'兩次輸入的密碼不一樣':'');
+      if(e) return fail(e);
+      st.busy=true; st.err=''; draw();
+      sb.rpc('check_registration',{pass:pass, sno:sno}).then(function(r){
+        if(r.error) return fail('暫時無法註冊，請稍後再試');
+        if(r.data==='bad_pass') return fail('通關密語不正確');
+        if(r.data==='dup') return fail('這個學員編號已經註冊過了。忘記密碼請按「登入」頁的「忘記密碼？」');
+        return sb.auth.signUp({ email:email, password:pw, options:{ emailRedirectTo:here, data:{ student_no:sno, passphrase:pass } } }).then(function(res){
+          if(res.error) return fail(/already/i.test(res.error.message)?'這個信箱已經註冊過了':'註冊失敗：'+res.error.message);
+          var u=res.data&&res.data.user;
+          if(u && u.identities && u.identities.length===0) return fail('這個信箱已經註冊過了。忘記密碼請按「忘記密碼？」');
+          st.f['r-pw']=''; st.f['r-pw2']=''; st.busy=false;
+          if(res.data.session){ return afterSession('register'); }
+          st.view='checkEmail'; draw();
+        });
+      });
+    },
+    forgot:function(){
+      keep(); var id=String(st.f['f-id']||'').trim();
+      if(!id) return fail('請輸入學員編號或信箱');
+      st.busy=true; st.err=''; draw();
+      var ident = id.indexOf('@')>0 ? Promise.resolve({data:id.toLowerCase()}) : sb.rpc('login_email_for',{sno:normNo(id)});
+      ident.then(function(r){
+        var email=r&&r.data;
+        var done=function(){ st.busy=false; st.err=''; st.msg='如果這個帳號存在，重設密碼的信已經寄出。請到信箱點信中的連結（也看看垃圾郵件匣）。'; draw(); };
+        if(!email) return done();
+        return sb.auth.resetPasswordForEmail(email,{ redirectTo:here+'?reset=1' }).then(done, done);
+      });
+    },
+    recovery:function(){
+      keep(); var pw=st.f['n-pw']||'', pw2=st.f['n-pw2']||'';
+      var e=pwRule(pw)||(pw!==pw2?'兩次輸入的密碼不一樣':''); if(e) return fail(e);
+      st.busy=true; draw();
+      sb.auth.updateUser({ password:pw }).then(function(r){
+        if(r.error) return fail('更新失敗：'+r.error.message+'。請重新申請一次重設信。');
+        st.busy=false; st.user=r.data.user; log('pwreset'); history.replaceState(null,'',here); afterSession('login');
+      });
+    },
+    finish:function(){
+      keep(); var pass=st.f['c-pass']||'', sno=normNo(st.f['c-sno']), pw=st.f['c-pw']||'';
+      var e=!pass?'請輸入通關密語':!/^[A-Z0-9-]{2,20}$/.test(sno)?'請輸入正確的學員編號（英文、數字或 -）':(pw?pwRule(pw):''); if(e) return fail(e);
+      st.busy=true; st.err=''; draw();
+      sb.rpc('register_student',{pass:pass, sno:sno}).then(function(r){
+        if(r.error) return fail('暫時無法註冊，請稍後再試');
+        if(r.data==='bad_pass') return fail('通關密語不正確');
+        if(r.data==='dup') return fail('這個學員編號已經被其他帳號註冊了，請聯絡學院管理者');
+        if(r.data==='bad_no') return fail('請輸入正確的學員編號');
+        if(r.data!=='ok') return fail('暫時無法註冊，請稍後再試');
+        var next=pw?sb.auth.updateUser({password:pw}):Promise.resolve({});
+        return next.then(function(){ return afterSession('register'); });
+      });
+    },
+    logout:function(){ window.__richLogout(); }
+  };
+
+  window.__richLogout=function(){
+    var p=st.user?log('logout'):Promise.resolve();
+    p.then(function(){ return sb.auth.signOut(); }).then(function(){ location.href=here; },function(){ location.href=here; });
+  };
+  window.__richChangePw=function(oldPw, newPw){
+    var u=st.user; if(!u) return Promise.resolve('請重新登入');
+    var hasPw=(u.app_metadata&&(u.app_metadata.providers||[]).indexOf('email')>=0);
+    var check = (hasPw||oldPw) ? sb.auth.signInWithPassword({ email:u.email, password:oldPw }).then(function(r){ return r.error?'目前的密碼不正確':''; }) : Promise.resolve('');
+    return check.then(function(err){ if(err) return err; return sb.auth.updateUser({ password:newPw }).then(function(r){ return r.error?('更新失敗：'+r.error.message):''; }); });
+  };
+
+  root.addEventListener('click',function(ev){
+    if(st.started) return;
+    var t=ev.target.closest('[data-a]'); if(!t) return;
+    ev.preventDefault(); if(st.busy && t.dataset.a!=='logout') return;
+    var fn=A[t.dataset.a]; if(fn) fn({v:t.dataset.v});
+  });
+  root.addEventListener('keydown',function(ev){
+    if(st.started||ev.key!=='Enter') return;
+    var form=ev.target.closest('form[data-form]'); if(!form||ev.target.tagName!=='INPUT') return;
+    ev.preventDefault(); var fn=A[form.dataset.form]; if(fn&&!st.busy) fn({});
+  });
+
+  var recovering = /type=recovery/.test(location.hash) || /[?&]reset=1/.test(location.search);
+  sb.auth.onAuthStateChange(function(event, session){
+    if(event==='PASSWORD_RECOVERY'){ recovering=true; st.user=session&&session.user; st.view='recovery'; st.err=''; st.msg=''; draw(); }
+  });
+  var hashErr=/error_description=([^&]+)/.exec(location.hash+location.search);
+  sb.auth.getSession().then(function(r){
+    var s=r.data&&r.data.session;
+    if(hashErr){ st.err=decodeURIComponent(hashErr[1].replace(/\+/g,' ')); history.replaceState(null,'',here); }
+    if(recovering){ if(s){ st.user=s.user; st.view='recovery'; draw(); return; } }
+    if(s){ var cameBack=/[?&]code=/.test(location.search); if(cameBack) history.replaceState(null,'',here); return afterSession(cameBack?'login':'open'); }
+    st.view='login'; draw();
+  }, function(){ st.view='login'; draw(); });
+})();
+</script>
