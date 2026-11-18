@@ -260,3 +260,19 @@ revoke all on function public.admin_set_role(uuid, text) from public;
 grant execute on function public.admin_set_role(uuid, text) to authenticated;
 revoke all on function public.admin_whoami() from public;
 grant execute on function public.admin_whoami() to authenticated;
+
+-- ---------- 安全強化（Supabase 安全檢查建議） ----------
+alter function private.norm_pass(text) set search_path = '';
+alter function public.owner_email() set search_path = '';
+revoke execute on function public.admin_set_role(uuid, text) from anon;
+revoke execute on function public.admin_set_suspended(uuid, boolean, text) from anon;
+revoke execute on function public.admin_whoami() from anon;
+revoke execute on function public.register_student(text, text) from anon;
+revoke execute on function public.doc_can_read(text) from anon, public;
+revoke execute on function public.doc_can_write(text) from anon, public;
+revoke execute on function public.is_owner() from anon, public;
+revoke execute on function public.is_staff() from anon, public;
+revoke execute on function public.is_manager() from anon, public;
+revoke execute on function public.is_member() from anon, public;
+revoke execute on function public.owner_email() from anon, public;
+grant execute on function public.doc_can_read(text), public.doc_can_write(text), public.is_owner(), public.is_staff(), public.is_manager(), public.is_member(), public.owner_email() to authenticated;
