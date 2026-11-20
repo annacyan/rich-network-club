@@ -44,7 +44,7 @@ rep(
   load().catch(function(){ ready=true; S.offline=true; fire(); });
   function docRef(path){ return {
     path:path,
-    get:function(){ return Promise.resolve(snapDoc(path)); },
+    get:function(){ return sb.from('docs').select('data').eq('path',path).maybeSingle().then(function(r){ if(r.error) throw err(r.error); var v=r.data?r.data.data:undefined; if(v!==undefined) cache[path]=v; return {id:path.split('/').pop(), exists:v!==undefined, data:function(){return v;}, metadata:{fromCache:false}}; }); },
     set:function(v){ var val=clone(v); return sb.from('docs').upsert({path:path,data:val,updated_at:new Date().toISOString()}).then(function(r){ if(r.error) throw err(r.error); cache[path]=val; fire(); }); },
     delete:function(){ return sb.from('docs').delete().eq('path',path).then(function(r){ if(r.error) throw err(r.error); delete cache[path]; fire(); }); },
     onSnapshot:function(cb){ var f=function(){ if(ready) cb(snapDoc(path)); }; subs.push(f); setTimeout(f); return function(){ subs=subs.filter(function(x){return x!==f;}); }; }
