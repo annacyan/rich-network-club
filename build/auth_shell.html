@@ -45,8 +45,11 @@
       '<form class="col" style="gap:12px" data-form="login">'+input('a-sno','學員編號','text','例：A12345','autocomplete="username" style="letter-spacing:1px"')+input('a-pw','密碼','password','','autocomplete="current-password"')+alertBox()+
       '<button class="btn block" style="height:52px;font-size:16px" data-a="login" '+(st.busy?'disabled':'')+'>'+busy('登入')+'</button>'+
       '<button type="button" class="xs" style="background:none;border:none;color:var(--pri);font-weight:700;text-decoration:underline;align-self:center;padding:8px" data-a="go" data-v="forgot">忘記密碼？</button></form>');
-    else if(st.view==='register') h=shell('Rich人脈富豪俱樂部','註冊需要課程中公布的通關密語。',tabs()+googleBtn('使用 Google 帳號註冊')+
-      '<form class="col" style="gap:12px" data-form="register">'+input('r-pass','通關密語 *','text','','autocomplete="off"')+input('r-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
+    else if(st.view==='register' && !st.passOk) h=shell('Rich人脈富豪俱樂部','請先輸入課程中公布的通關密語，正確後才能註冊。',tabs()+
+      '<form class="col" style="gap:12px" data-form="checkPass">'+input('r-pass','通關密語 *','text','','autocomplete="off" autofocus')+alertBox()+
+      '<button class="btn block" style="height:52px;font-size:16px" data-a="checkPass" '+(st.busy?'disabled':'')+'>'+busy('下一步')+'</button></form>');
+    else if(st.view==='register') h=shell('Rich人脈富豪俱樂部','',tabs()+'<p class="small" style="margin:0;color:var(--pri);font-weight:700;text-align:center">✓ 通關密語正確，請填寫註冊資料</p>'+googleBtn('使用 Google 帳號註冊')+
+      '<form class="col" style="gap:12px" data-form="register">'+input('r-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
       input('r-email','信箱 *（忘記密碼時用來重設）','email','name@gmail.com','autocomplete="email"')+input('r-pw','設定密碼 *','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">至少 6 個字元，其中至少 3 個數字。</span>'+input('r-pw2','再輸入一次密碼 *','password','','autocomplete="new-password"')+alertBox()+
       '<button class="btn block" style="height:52px;font-size:16px" data-a="register" '+(st.busy?'disabled':'')+'>'+busy('註冊')+'</button></form>');
     else if(st.view==='forgot') h=shell('忘記密碼','輸入學員編號或註冊信箱，我們會寄一封重設密碼的信給你。',
@@ -57,7 +60,7 @@
       '<form class="col" style="gap:12px" data-form="recovery">'+input('n-pw','新密碼','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">至少 6 個字元，其中至少 3 個數字。</span>'+input('n-pw2','再輸入一次新密碼','password','','autocomplete="new-password"')+alertBox()+
       '<button class="btn block" style="height:52px;font-size:16px" data-a="recovery" '+(st.busy?'disabled':'')+'>'+busy('更新密碼並登入')+'</button></form>');
     else if(st.view==='finish') h=shell('完成學員註冊','你已用 '+esc(st.user&&st.user.email)+' 登入。<br>第一次使用，請輸入通關密語和學員編號。',
-      '<form class="col" style="gap:12px" data-form="finish">'+input('c-pass','通關密語 *','text','','autocomplete="off"')+input('c-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
+      '<form class="col" style="gap:12px" data-form="finish">'+(st.f['c-pass']=st.f['c-pass']||(function(){try{return sessionStorage.getItem('rich-pass')||'';}catch(e){return '';}})(),input('c-pass','通關密語 *','text','','autocomplete="off"'))+input('c-sno','學院學員編號 *','text','例：A12345','autocomplete="off" style="letter-spacing:1px" maxlength="20"')+
       input('c-pw','設定密碼（選填）','password','','autocomplete="new-password"')+'<span class="xs muted" style="margin-top:-6px">設定後，也可以用「學員編號＋密碼」登入。至少 6 個字元、3 個數字。</span>'+alertBox()+
       '<button class="btn block" style="height:52px;font-size:16px" data-a="finish" '+(st.busy?'disabled':'')+'>'+busy('完成註冊')+'</button>'+
       '<button type="button" class="btn ghost block" data-a="logout">換一個帳號</button></form>');
@@ -111,14 +114,27 @@
         });
       });
     },
+    checkPass:function(){
+      keep(); var pass=st.f['r-pass']||'';
+      if(!pass.trim()) return fail('請輸入通關密語');
+      st.busy=true; st.err=''; draw();
+      sb.rpc('check_registration',{pass:pass, sno:''}).then(function(r){
+        if(r.error) return fail('暫時無法確認，請稍後再試');
+        if(r.data==='bad_pass') return fail('通關密語不正確');
+        st.passOk=true; st.busy=false; st.err='';
+        try{ sessionStorage.setItem('rich-pass', pass); }catch(e){}
+        draw();
+      });
+    },
     register:function(){
       keep(); var pass=st.f['r-pass']||'', sno=normNo(st.f['r-sno']), email=String(st.f['r-email']||'').trim().toLowerCase(), pw=st.f['r-pw']||'', pw2=st.f['r-pw2']||'';
-      var e=!pass?'請輸入通關密語':!/^[A-Z0-9-]{2,20}$/.test(sno)?'請輸入正確的學員編號（英文、數字或 -）':!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?'請輸入正確的信箱':pwRule(pw)||(pw!==pw2?'兩次輸入的密碼不一樣':'');
+      if(!pass){ st.passOk=false; return fail('請先輸入通關密語'); }
+      var e=!/^[A-Z0-9-]{2,20}$/.test(sno)?'請輸入正確的學員編號（英文、數字或 -）':!/^[^\s@]+@[^\s@]+\.[^\s@]+$/.test(email)?'請輸入正確的信箱':pwRule(pw)||(pw!==pw2?'兩次輸入的密碼不一樣':'');
       if(e) return fail(e);
       st.busy=true; st.err=''; draw();
       sb.rpc('check_registration',{pass:pass, sno:sno}).then(function(r){
         if(r.error) return fail('暫時無法註冊，請稍後再試');
-        if(r.data==='bad_pass') return fail('通關密語不正確');
+        if(r.data==='bad_pass'){ st.passOk=false; return fail('通關密語不正確'); }
         if(r.data==='dup') return fail('這個學員編號已經註冊過了。忘記密碼請按「登入」頁的「忘記密碼？」');
         return sb.auth.signUp({ email:email, password:pw, options:{ emailRedirectTo:here, data:{ student_no:sno, passphrase:pass } } }).then(function(res){
           if(res.error) return fail(/already/i.test(res.error.message)?'這個信箱已經註冊過了':'註冊失敗：'+res.error.message);
